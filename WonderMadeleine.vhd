@@ -3,7 +3,9 @@
 --                      (c) 2014  986-Studio / Godzil                        --
 --  http://www.986-studio.com  <godzil_nospambot at 986 dash studio dot com> --
 --                                                                           --
--- What this file is about:                                                  --
+-- WonderMadeleine.vhd : TOP implementation                                  --
+--                                                                           --
+-- What this project is about:                                               --
 --                                                                           --
 -- This is a VHDL implementation of the Bandai 2001 / 2003 chip found in all --
 -- official WonderSwan Cartridge. It will ultimately provide a fully         --
@@ -72,8 +74,9 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity WonderMadeleine is
     port(
-        D_BUS:   inout std_logic_vector( 7 downto 0);      -- 16 bit Data bus
-        A_BUS:   in    std_logic_vector(19 downto 0);      -- 20 bit Address bus
+        D_BUS:   inout std_logic_vector( 7 downto  0);      -- 16 bit Data bus
+        A_BUS_H: in    std_logic_vector(19 downto 16);      -- High part of 20 bit Address bus
+        A_BUS_L: in    std_logic_vector( 3 downto  0);      -- Low part of 20 bit Address bus
 
         nRD:     in    std_logic;                          -- /RD Signal
         nWR:     in    std_logic;                          -- /WR Signal
@@ -88,36 +91,92 @@ entity WonderMadeleine is
         nSEL:    in    std_logic;                          -- /SEL cart sel.
 
         EXT_A:   out   std_logic_vector( 7 downto 0);      -- 8 bit A bus extension from IO page
-        nSRAM_CS:out   std_logic;                                    -- SRAM ChipSelect
-        nROM_CS: out   std_logic;                                    -- ROM ChipSelect
+        nSRAM_CS:out   std_logic;                          -- SRAM ChipSelect
+        nROM_CS: out   std_logic;                          -- ROM ChipSelect
 
-		  EEP_CS:  out   std_logic;
-		  EEP_SI:  in    std_logic;
-		  EEP_MO:  out   std_logic;
-		  EEP_CK:  out   std_logic;
-		  
-		  RTC_CLD: out   std_logic;
-		  RTC_DATA:inout std_logic;
-		  
+        EEP_CS:  out   std_logic;
+        EEP_DI:  in    std_logic;
+        EEP_DO:  out   std_logic;
+        EEP_CK:  out   std_logic;
+
+        RTC_CLK: out   std_logic;
+        RTC_CS:  out   std_logic;
+        RTC_DATA:inout std_logic;
+
         GPIO:    inout std_logic_vector(1 downto 0)
     );
 end WonderMadeleine;
 
 architecture Behavioral of WonderMadeleine is
+    component GpioRegs is
+        port(
+            sel:     in    std_logic;
+				nRD:     in    std_logic;
+				nWR:     in    std_logic;
+            regNum:  in    std_logic;
+            data:    inout std_logic_vector(7 downto 0);
+            clock:   in    std_logic;
+            -- GPIO PINs
+            GPIO:    inout   std_logic_vector(1 downto 0)
+        );
+    end component;
+
+    component EepromRegs
+        port(
+            sel:     in    std_logic;
+				nRD:     in    std_logic;
+				nWR:     in    std_logic;
+            regNum:  in    std_logic_vector(2 downto 0);
+            data:    inout std_logic_vector(7 downto 0);
+            clock:   in    std_logic;
+            -- EEPROM PINs
+            CS:      out   std_logic;
+            CLK:     out   std_logic;
+            DI:      in    std_logic;
+            DO:      out   std_logic
+        );
+    end component;
+
+    component RtcRegs
+        port(
+            sel:     in    std_logic;
+				nRD:     in    std_logic;
+				nWR:     in    std_logic;
+            regNum:  in    std_logic;
+            data:    inout std_logic_vector(7 downto 0);
+            clock:   in    std_logic;
+            -- RTC PINs
+            SDA:     inout std_logic;
+            CLK:     out   std_logic;
+            CS:      out    std_logic
+        );
+    end component;
+
     signal rMBC:        std_logic;
     signal readD:       std_logic_vector(7 downto 0);
     signal writeD:      std_logic_vector(7 downto 0);
 
-	 signal nRWTop:      std_logic;
-	 
+    signal nRWTop:      std_logic;
+
     signal regC0:       std_logic_vector(7 downto 0);
     signal regC1:       std_logic_vector(7 downto 0);
     signal regC2:       std_logic_vector(7 downto 0);
     signal regC3:       std_logic_vector(7 downto 0);
+
+    signal eepromRegSel:   std_logic;
+    signal rtcRegSel:      std_logic;
+    signal gpioRegSel:     std_logic;
+    signal ioRegNum:       std_logic_vector(7 downto 0);
 begin
+
+    -- Instantiates all needed components
+    gpioInst:   GpioRegs   port map(gpioRegSel,   nRd, nWR, ioRegNum(0), D_BUS, SYS_CLK, GPIO);
+    eepromInst: EepromRegs port map(eepromRegSel, nRd, nWR, ioRegNum(2 downto 0), D_BUS, SYS_CLK, EEP_CS, EEP_CK, EEP_DI, EEP_DO);
+    rtcInst:    RtcRegs    port map(rtcRegSel,    nRd, nWR, ioRegNum(0), D_BUS, SYS_CLK, RTC_DATA, RTC_CLK, RTC_CS);
+
     nINT <= 'Z';
     nMBC <= rMBC;
-	 nRWTop <= nRD and nWR;
+    nRWTop <= nRD and nWR;
     d_latches: process (nSEL, nIO, nRD, nWR, D_BUS, writeD, readD)
     begin
         if (nSEL='0' and nIO = '0' and nRD = '0' and nWR = '1') then
@@ -126,76 +185,109 @@ begin
             else
                 D_BUS <= "ZZZZZZZZ";
             end if;
-	         readD <= D_BUS;
-	  	  elsif (nSEL='0' and nIO = '0' and nRD = '1' and nWR = '0') then
+            readD <= D_BUS;
+        elsif (nSEL='0' and nIO = '0' and nRD = '1' and nWR = '0') then
             D_BUS <= "ZZZZZZZZ";
             readD <= D_BUS;
         else
             D_BUS <= "ZZZZZZZZ";
-				readD <= "11111111";
+            readD <= "11111111";
         end if;
     end process;
 
-    main: process(nSEL, nIO, nRD, nWR, nRWTop, A_BUS, nRESET, readD, regC0, regC1, regC2, regC3)
-    variable regNum:     std_logic_vector(7 downto 0);
-	 variable validRange: std_logic;
+    main: process(nSEL, nIO, nRD, nWR, nRWTop, A_BUS_H, A_BUS_L, nRESET, readD, regC0, regC1, regC2, regC3)
+    variable validRange: std_logic;
     begin
-        regNum(7 downto 6) := "00";
-        regNum(5 downto 4) := A_BUS(17 downto 16);
-        regNum(3 downto 0) := A_BUS( 3 downto  0);
-		  
+        ioRegNum(7 downto 4) <= A_BUS_H(19 downto 16);
+        ioRegNum(3 downto 0) <= A_BUS_L( 3 downto  0);
+
         if (nRESET = '0') then
-            nSRAM_CS <= '1';
-            nROM_CS  <= '1';
-            regC0 <= X"FF";
-            regC1 <= X"FF";
-            regC2 <= X"FF";
-            regC3 <= X"FF";
-        elsif (nSEL = '0' and validRange = '1') then
+            nSRAM_CS     <= '1';
+            nROM_CS      <= '1';
+            regC0        <= X"FF";
+            regC1        <= X"FF";
+            regC2        <= X"FF";
+            regC3        <= X"FF";
+            eepromRegSel <= '0';
+            rtcRegSel    <= '0';
+            gpioRegSel   <= '0';
+			elsif (nSEL = '0' and validRange = '1') then
             if(nIO = '0') then
                 nSRAM_CS <= '1'; nROM_CS <= '1';
                 if (falling_edge(nRWTop) and nRD = '0' and nWR = '1') then
-                    case regNum is
-                        when X"00"  => writeD <= regC0;
-                        when X"01"  => writeD <= regC1;
-                        when X"02"  => writeD <= regC2;
-                        when X"03"  => writeD <= regC3;
-                        when others => writeD <= X"FF";
+                    case ioRegNum is
+                        when X"C0"  => writeD <= regC0; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C1"  => writeD <= regC1; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C2"  => writeD <= regC2; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C3"  => writeD <= regC3; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"C4"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"C5"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"C6"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"C7"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"C8"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"CA"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
+								when X"CB"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
+                        when X"CC"  => eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '1';
+								when X"CD"  => eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '1';
+                        when others => writeD <= X"FF"; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
                     end case;
                 elsif (falling_edge(nRWTop) and nRD = '1' and nWR = '0') then
-                    case regNum is
-                        when X"00"  => regC0 <= readD;
-                        when X"01"  => regC1 <= readD;
-                        when X"02"  => regC2 <= readD;
-                        when X"03"  => regC3 <= readD;
+                    case ioRegNum is
+                        when X"C0"  => regC0 <= readD; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C1"  => regC1 <= readD; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C2"  => regC2 <= readD; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C3"  => regC3 <= readD; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"C4"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"C5"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"C6"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"C7"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"C8"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+								when X"CA"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
+								when X"CB"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
+                        when X"CC"  => eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '1';
+								when X"CD"  => eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '1';
                         when others => null;
                     end case;
                 end if;
             elsif (nRD = '0' or nWR = '0') then
                 -- Not IO
-                case A_BUS(19 downto 16) is
+                case A_BUS_H is
                     when X"0"   => nSRAM_CS <= '1'; nROM_CS <= '1';
                     when X"1"   => nSRAM_CS <= '0'; nROM_CS <= '1';
                     when others => nSRAM_CS <= '1'; nROM_CS <= '0';
                 end case;
+                -- Be sure the reg are not sel during non IO
+                eepromRegSel <= '0';
+                rtcRegSel    <= '0';
+                gpioRegSel   <= '0';
             else
+                -- Be sure the reg are not sel during non IO
+                eepromRegSel <= '0';
+                rtcRegSel    <= '0';
+                gpioRegSel   <= '0';
+                -- Not accessing SRAM or ROM mapping
                 nSRAM_CS <= '1'; nROM_CS <= '1';
             end if;
-        else -- Not Sel
+        else -- Cart is not sel
             nSRAM_CS <= '1'; nROM_CS <= '1';
+
+            -- Be sure the reg are not sel during non IO
+            eepromRegSel <= '0';
+            rtcRegSel    <= '0';
+            gpioRegSel   <= '0';
         end if;
 
-        case A_BUS(19 downto 16) is
+        case A_BUS_H(19 downto 16) is
             when X"0"   => validRange := '0'; EXT_A <= X"00";
-            when X"1"   => validRange := '1'; EXT_A <= regC1; --mbcReg(1); --C1;
-            when X"2"   => validRange := '1'; EXT_A <= regC2; --mbcReg(2); --C2;
-            when X"3"   => validRange := '1'; EXT_A <= regC3; --mbcReg(3); --C3;
-            when others => validRange := '1'; EXT_A(7 downto 4) <= regC0(3 downto 0); --mbcReg(0)(3 downto 0); --C0
-                           EXT_A(3 downto 0) <= A_BUS(19 downto 16);
+            when X"1"   => validRange := '1'; EXT_A <= regC1;
+            when X"2"   => validRange := '1'; EXT_A <= regC2;
+            when X"3"   => validRange := '1'; EXT_A <= regC3;
+            when others => validRange := '1'; EXT_A(7 downto 4) <= regC0(3 downto 0);
+                           EXT_A(3 downto 0) <= A_BUS_H;
         end case;
     end process;
 
-    mbc_lock: process (SYS_CLK, nRESET, A_BUS)
+    mbc_lock: process (SYS_CLK, nRESET, A_BUS_H, A_BUS_L)
         type STATE_TYPE is (sWait, sWaitForA5, sA1, SA2, SA3, sA4,
                             sB1, sB2, sB3, sB4, sB5, sB6, sC, sD,
                             sE, sF1, sF2, sF3, sG, sH, sI, sJ1, sJ2,
@@ -205,8 +297,8 @@ begin
         if (nRESET = '0') then
             state := sWaitForA5;
         elsif (rising_edge(SYS_CLK) and state = sWaitForA5
-                                    and A_BUS(19 downto 16) = X"A"
-                                    and A_BUS( 5 downto  0) = X"5" ) then
+                                    and A_BUS_H = X"A"
+                                    and A_BUS_L = X"5" ) then
             state := sA1;
         elsif (rising_edge(SYS_CLK)) then
             case state is
@@ -243,7 +335,8 @@ end architecture;
 -- Test script...
 -- restart
 -- force -freeze sim:/wondermadeleine/SYS_CLK 1 0, 0 {50 ps} -r 100
--- force -freeze sim:/wondermadeleine/A_BUS 11000000000000000011 0
+-- force -freeze sim:/wondermadeleine/A_BUS_H 1100 0
+-- force -freeze sim:/wondermadeleine/A_BUS_L 0011 0
 -- force -freeze sim:/wondermadeleine/D_BUS 10101010 0 -cancel 200
 -- force -freeze sim:/wondermadeleine/regC0 01011011 0
 -- force -freeze sim:/wondermadeleine/regC1 10111101 0
@@ -269,7 +362,8 @@ end architecture;
 -- force -freeze sim:/wondermadeleine/nIO 1 330
 -- force -freeze sim:/wondermadeleine/nSEL 1 350
 
--- force -freeze sim:/wondermadeleine/A_BUS 00110000000000000000 400
+-- force -freeze sim:/wondermadeleine/A_BUS_H 0011 400
+-- force -freeze sim:/wondermadeleine/A_BUS_L 0000 400
 -- force -freeze sim:/wondermadeleine/nRD 0 410
 -- force -freeze sim:/wondermadeleine/nRD 1 420
 -- force -freeze sim:/wondermadeleine/nSEL 0 430
@@ -277,7 +371,7 @@ end architecture;
 -- force -freeze sim:/wondermadeleine/nRD 1 450
 -- force -freeze sim:/wondermadeleine/nSEL 1 460
 
--- force -freeze sim:/wondermadeleine/A_BUS 10100000000000000000 500
+-- force -freeze sim:/wondermadeleine/A_BUS_H 1010 500
 -- force -freeze sim:/wondermadeleine/nWR 0 510
 -- force -freeze sim:/wondermadeleine/nWR 1 520
 -- force -freeze sim:/wondermadeleine/nSEL 0 530
@@ -285,7 +379,7 @@ end architecture;
 -- force -freeze sim:/wondermadeleine/nWR 1 550
 -- force -freeze sim:/wondermadeleine/nSEL 1 560
 
--- force -freeze sim:/wondermadeleine/A_BUS 00000000000000000000 600
+-- force -freeze sim:/wondermadeleine/A_BUS_H 0000 600
 -- force -freeze sim:/wondermadeleine/nWR 0 610
 -- force -freeze sim:/wondermadeleine/nWR 1 620
 -- force -freeze sim:/wondermadeleine/nSEL 0 630
@@ -293,7 +387,7 @@ end architecture;
 -- force -freeze sim:/wondermadeleine/nWR 1 650
 -- force -freeze sim:/wondermadeleine/nSEL 1 660
 
--- force -freeze sim:/wondermadeleine/A_BUS 00010000000000000000 700
+-- force -freeze sim:/wondermadeleine/A_BUS_H 0001 700
 -- force -freeze sim:/wondermadeleine/nRD 0 710
 -- force -freeze sim:/wondermadeleine/nRD 1 720
 -- force -freeze sim:/wondermadeleine/nSEL 0 730

@@ -25,7 +25,8 @@ This project is currently licensed under the the Creative Common BY-NC-ND
 
 *If you have any doubt, please contact me I will be happy to help you*
 
- What is currently working: _(as of 13 november 2014)_
+What is currently working: _(as of 13 november 2014)_
+--------------------------
 - [x] - ROM Banking
 - [x] - SRAM Banking
 - [x] - WonderSwan boot unlock

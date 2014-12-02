@@ -13,22 +13,22 @@
 --                                                                           --
 -- Licensed under the the Creative Common BY-NC-ND :                         --
 -- You are free to:                                                          --
---   Share — copy and redistribute the material in any medium or format      --
+--   Share, copy and redistribute the material in any medium or format       --
 --                                                                           --
 --   The licensor cannot revoke these freedoms as long as you follow the     --
 --   license terms.                                                          --
 --                                                                           --
 -- Under the following terms:                                                --
 --                                                                           --
---   Attribution   — You must give appropriate credit, provide a link to     --
+--   Attribution   - You must give appropriate credit, provide a link to     --
 --                   the license, and indicate if changes were made. You     --
 --                   may do so in any reasonable manner, but not in any way  --
 --                   that suggests the licensor endorses you or your use.    --
---   NonCommercial — You may not use the material for commercial purposes.   --
---   NoDerivatives — If you remix, transform, or build upon the material,    --
+--   NonCommercial - You may not use the material for commercial purposes.   --
+--   NoDerivatives - If you remix, transform, or build upon the material,    --
 --                   you may not distribute the modified material.           --
 --                                                                           --
---   No additional restrictions — You may not apply legal terms or           --
+--   No additional restrictions - You may not apply legal terms or           --
 --                                technological measures that legally        --
 --                                restrict others from doing anything the    --
 --                                license permits.                           --
@@ -74,7 +74,7 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity WonderMadeleine is
     port(
-        D_BUS:   inout std_logic_vector( 7 downto  0);      -- Lower part of the 16 bit Data bus
+        D_BUS:   inout std_logic_vector( 7 downto  0);      -- 16 bit Data bus
         A_BUS_H: in    std_logic_vector(19 downto 16);      -- High part of 20 bit Address bus
         A_BUS_L: in    std_logic_vector( 3 downto  0);      -- Low part of 20 bit Address bus
 
@@ -111,8 +111,8 @@ architecture Behavioral of WonderMadeleine is
     component GpioRegs is
         port(
             sel:     in    std_logic;
-				nRD:     in    std_logic;
-				nWR:     in    std_logic;
+            nRD:     in    std_logic;
+            nWR:     in    std_logic;
             regNum:  in    std_logic;
             data:    inout std_logic_vector(7 downto 0);
             clock:   in    std_logic;
@@ -124,8 +124,8 @@ architecture Behavioral of WonderMadeleine is
     component EepromRegs
         port(
             sel:     in    std_logic;
-				nRD:     in    std_logic;
-				nWR:     in    std_logic;
+            nRD:     in    std_logic;
+            nWR:     in    std_logic;
             regNum:  in    std_logic_vector(2 downto 0);
             data:    inout std_logic_vector(7 downto 0);
             clock:   in    std_logic;
@@ -140,15 +140,16 @@ architecture Behavioral of WonderMadeleine is
     component RtcRegs
         port(
             sel:     in    std_logic;
-				nRD:     in    std_logic;
-				nWR:     in    std_logic;
+            nRD:     in    std_logic;
+            nWR:     in    std_logic;
             regNum:  in    std_logic;
             data:    inout std_logic_vector(7 downto 0);
             clock:   in    std_logic;
             -- RTC PINs
             SDA:     inout std_logic;
             CLK:     out   std_logic;
-            CS:      out    std_logic
+            CS:      out   std_logic;
+            nINT:    out   std_logic
         );
     end component;
 
@@ -172,7 +173,7 @@ begin
     -- Instantiates all needed components
     gpioInst:   GpioRegs   port map(gpioRegSel,   nRd, nWR, ioRegNum(0), D_BUS, SYS_CLK, GPIO);
     eepromInst: EepromRegs port map(eepromRegSel, nRd, nWR, ioRegNum(2 downto 0), D_BUS, SYS_CLK, EEP_CS, EEP_CK, EEP_DI, EEP_DO);
-    rtcInst:    RtcRegs    port map(rtcRegSel,    nRd, nWR, ioRegNum(0), D_BUS, SYS_CLK, RTC_DATA, RTC_CLK, RTC_CS);
+    rtcInst:    RtcRegs    port map(rtcRegSel,    nRd, nWR, ioRegNum(0), D_BUS, SYS_CLK, RTC_DATA, RTC_CLK, RTC_CS, nINT);
 
     nINT <= 'Z';
     nMBC <= rMBC;
@@ -180,18 +181,14 @@ begin
     d_latches: process (nSEL, nIO, nRD, nWR, D_BUS, writeD, readD)
     begin
         if (nSEL='0' and nIO = '0' and nRD = '0' and nWR = '1') then
-            if (nIO = '0') then
-                D_BUS <= writeD;
-            else
-                D_BUS <= "ZZZZZZZZ";
-            end if;
+            D_BUS <= writeD;
             readD <= D_BUS;
         elsif (nSEL='0' and nIO = '0' and nRD = '1' and nWR = '0') then
             D_BUS <= "ZZZZZZZZ";
             readD <= D_BUS;
         else
             D_BUS <= "ZZZZZZZZ";
-            readD <= "11111111";
+            readD <= D_BUS;
         end if;
     end process;
 
@@ -211,7 +208,7 @@ begin
             eepromRegSel <= '0';
             rtcRegSel    <= '0';
             gpioRegSel   <= '0';
-			elsif (nSEL = '0' and validRange = '1') then
+            elsif (nSEL = '0' and validRange = '1') then
             if(nIO = '0') then
                 nSRAM_CS <= '1'; nROM_CS <= '1';
                 if (falling_edge(nRWTop) and nRD = '0' and nWR = '1') then
@@ -220,15 +217,15 @@ begin
                         when X"C1"  => writeD <= regC1; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
                         when X"C2"  => writeD <= regC2; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
                         when X"C3"  => writeD <= regC3; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"C4"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"C5"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"C6"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"C7"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"C8"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"CA"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
-								when X"CB"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
+                        when X"C4"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C5"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C6"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C7"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C8"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"CA"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
+                        when X"CB"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
                         when X"CC"  => eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '1';
-								when X"CD"  => eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '1';
+                        when X"CD"  => eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '1';
                         when others => writeD <= X"FF"; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
                     end case;
                 elsif (falling_edge(nRWTop) and nRD = '1' and nWR = '0') then
@@ -237,15 +234,15 @@ begin
                         when X"C1"  => regC1 <= readD; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
                         when X"C2"  => regC2 <= readD; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
                         when X"C3"  => regC3 <= readD; eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"C4"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"C5"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"C6"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"C7"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"C8"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
-								when X"CA"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
-								when X"CB"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
+                        when X"C4"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C5"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C6"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C7"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"C8"  => eepromRegSel <= '1'; rtcRegSel <= '0'; gpioRegSel <= '0';
+                        when X"CA"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
+                        when X"CB"  => eepromRegSel <= '0'; rtcRegSel <= '1'; gpioRegSel <= '0';
                         when X"CC"  => eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '1';
-								when X"CD"  => eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '1';
+                        when X"CD"  => eepromRegSel <= '0'; rtcRegSel <= '0'; gpioRegSel <= '1';
                         when others => null;
                     end case;
                 end if;
@@ -283,7 +280,7 @@ begin
             when X"2"   => validRange := '1'; EXT_A <= regC2;
             when X"3"   => validRange := '1'; EXT_A <= regC3;
             when others => validRange := '1'; EXT_A(7 downto 4) <= regC0(3 downto 0);
-                           EXT_A(3 downto 0) <= A_BUS_H;
+                                              EXT_A(3 downto 0) <= A_BUS_H;
         end case;
     end process;
 

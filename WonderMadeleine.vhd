@@ -74,7 +74,7 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity WonderMadeleine is
     port(
-        D_BUS:   inout std_logic_vector( 7 downto  0);      -- 16 bit Data bus
+        D_BUS:   inout std_logic_vector( 7 downto  0);      -- Lower part of the 16 bit Data bus
         A_BUS_H: in    std_logic_vector(19 downto 16);      -- High part of 20 bit Address bus
         A_BUS_L: in    std_logic_vector( 3 downto  0);      -- Low part of 20 bit Address bus
 

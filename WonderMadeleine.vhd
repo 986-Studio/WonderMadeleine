@@ -171,9 +171,9 @@ architecture Behavioral of WonderMadeleine is
 begin
 
     -- Instantiates all needed components
-    gpioInst:   GpioRegs   port map(gpioRegSel,   nRd, nWR, ioRegNum(0), D_BUS, SYS_CLK, GPIO);
-    eepromInst: EepromRegs port map(eepromRegSel, nRd, nWR, ioRegNum(2 downto 0), D_BUS, SYS_CLK, EEP_CS, EEP_CK, EEP_DI, EEP_DO);
-    rtcInst:    RtcRegs    port map(rtcRegSel,    nRd, nWR, ioRegNum(0), D_BUS, SYS_CLK, RTC_DATA, RTC_CLK, RTC_CS, nINT);
+    --gpioInst:   GpioRegs   port map(gpioRegSel,   nRd, nWR, ioRegNum(0), D_BUS, SYS_CLK, GPIO);
+    --eepromInst: EepromRegs port map(eepromRegSel, nRd, nWR, ioRegNum(2 downto 0), D_BUS, SYS_CLK, EEP_CS, EEP_CK, EEP_DI, EEP_DO);
+    --rtcInst:    RtcRegs    port map(rtcRegSel,    nRd, nWR, ioRegNum(0), D_BUS, SYS_CLK, RTC_DATA, RTC_CLK, RTC_CS, nINT);
 
     nINT <= 'Z';
     nMBC <= rMBC;

@@ -14,7 +14,7 @@ This is a VHDL implementation of the Bandai 2001 / 2003 chip found in all offici
 
 License
 -------
-This project is currently licensed under the the Creative Common BY-NC-ND
+This project is currently licensed under the Creative Common BY-NC-ND
 
 * What does that mean:
  * You can use this code to program your own CPLD

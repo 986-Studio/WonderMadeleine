@@ -14,14 +14,19 @@ This is a VHDL implementation of the Bandai 2001 / 2003 chip found in all offici
 
 License
 -------
-This project is currently licensed under the the Creative Common BY-NC-ND
+This project is currently licensed under the something close to the CC BY-NC-ND:
 
 * What does that mean:
- * You can use this code to program your own CPLD
- *  You can build your own cartridge that use this CPLD (and you can even sell them!)
- *  But you can't program CPLD and sell them directly
- *  You are welcome to propose patch for supporting another CPLD or correct bugs
- *  You can't integrate this code with another CPLD of FPGA project
+ * The BY is the same as the CC:
+  * You have to give credits if you are using this code in a chip on your board,
+ * The NC differ from the CC:
+  * You can use this code to program your own CPLD/FPGA
+  * You cannot sell directly this code or a chip using this code, but work using it is fine:
+   * You can build your own cartridge that use this CPLD/FPGA (and you can even sell them!)
+   * But you can't program CPLD and sell them directly
+ * The ND also differ:
+  * You are welcome to propose patch for supporting another CPLD/FPGA or correct bugs, add functionality (you can create fork on GitHub for this is not a problème)
+  * But changes in the code to integrate into a more complex COLD/FPGA project is not authorised.
 
 *If you have any doubt, please contact me I will be happy to help you*
 
